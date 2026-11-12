@@ -20,8 +20,9 @@ needs Windows 10 (version 1703 or later) or Windows 11, x64. It isn't signed: Sm
 warn on the first start ("More info", then "Run anyway").
 
 To publish a release, set the version in `Cargo.toml` (the window title and the executable's
-properties show it), merge, then push the tag: `git tag v1.0.0 && git push origin v1.0.0`. The
-Release workflow refuses a tag that doesn't match it.
+properties show it), describe it in [CHANGELOG.md](CHANGELOG.md), merge, then push the tag:
+`git tag v1.0.0 && git push origin v1.0.0`. The Release workflow refuses a tag that doesn't
+match the version.
 
 ## Picking a color
 
