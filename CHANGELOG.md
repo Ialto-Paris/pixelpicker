@@ -4,6 +4,14 @@ Every release of Pixel Picker, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- A Microsoft Store package (MSIX), made by every Build and Release run as the `store-package`
+  artifact, with logos drawn from the icon's artwork.
+- A privacy statement, `PRIVACY.md`: Pixel Picker collects no data and sends nothing anywhere.
+
 ## [1.0.1] - 2026-11-12
 
 ### Added
@@ -34,5 +42,6 @@ First release.
 - Per-Monitor V2 DPI awareness and multi-monitor support.
 - Single executable with its icon and version details; release workflow on `vX.Y.Z` tags.
 
+[Unreleased]: https://github.com/ialto-paris/pixelpicker/compare/v1.0.1...HEAD
 [1.0.1]: https://github.com/ialto-paris/pixelpicker/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/ialto-paris/pixelpicker/releases/tag/v1.0.0

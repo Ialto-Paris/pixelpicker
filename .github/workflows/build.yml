@@ -1,5 +1,7 @@
 # Builds the release executable, starts it once (smoke-test.ps1: version details, main window,
-# clean exit) and keeps it as an artifact (PixelPicker-Windows).
+# clean exit) and keeps it as an artifact (PixelPicker-Windows). Also builds the Microsoft Store
+# package (package-msix.ps1), kept apart as the store-package artifact: it is unsigned until
+# the Store signs it, so it isn't attached to releases.
 # Release calls it for every version tag; CI calls it when run by hand with "build"; it can also
 # be run by hand alone (Actions > Build > Run workflow). Nothing runs it by itself.
 name: Build
@@ -32,8 +34,16 @@ jobs:
       - name: Start-up test
         shell: pwsh
         run: .github/scripts/smoke-test.ps1 (Get-Item dist/PixelPicker-windows-*.exe).FullName
+      - name: Microsoft Store package (MSIX)
+        shell: pwsh
+        run: .github/scripts/package-msix.ps1
       - uses: actions/upload-artifact@v7
         with:
           name: PixelPicker-Windows
-          path: dist/*
+          path: dist/*.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: store-package
+          path: dist/*.msix
           if-no-files-found: error

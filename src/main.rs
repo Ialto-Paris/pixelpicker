@@ -16,6 +16,11 @@ mod magnifier;
 mod picker;
 mod win;
 
+// The PNG writer belongs to build.rs and examples/msix_assets.rs; it is compiled here only
+// to run its tests.
+#[cfg(test)]
+mod png;
+
 use windows_sys::Win32::UI::Controls::{
     ICC_LINK_CLASS, ICC_STANDARD_CLASSES, INITCOMMONCONTROLSEX, InitCommonControlsEx,
 };

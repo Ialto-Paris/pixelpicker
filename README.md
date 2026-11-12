@@ -14,6 +14,7 @@ Made by [Ialto](https://ialto.com) and distributed under the Apache License 2.0 
 |---|---|---|
 | **Releases** (one per `vX.Y.Z` tag) | `PixelPicker-windows-x64.exe` | For good |
 | **Actions**, a Build (or CI with "build") run started by hand, Artifacts | The same file, in `PixelPicker-Windows` | 90 days |
+| **Actions**, any Build or Release run, Artifacts | `PixelPicker-windows-x64.msix` in `store-package`, for the Microsoft Store (see [Microsoft Store](#microsoft-store)) | 90 days |
 
 It is a single executable of about 210 KB, with no installer and nothing else to install. It
 needs Windows 10 (version 1703 or later) or Windows 11, x64. It isn't signed: SmartScreen may
@@ -23,6 +24,8 @@ To publish a release, set the version in `Cargo.toml` (the window title and the 
 properties show it), describe it in [CHANGELOG.md](CHANGELOG.md), merge, then push the tag:
 `git tag v1.0.0 && git push origin v1.0.0`. The Release workflow refuses a tag that doesn't
 match the version.
+
+Pixel Picker collects no data and sends nothing anywhere: see [PRIVACY.md](PRIVACY.md).
 
 ## Picking a color
 
@@ -84,7 +87,7 @@ Checks are run locally, before pushing; GitHub's CI minutes are kept for release
 
 ```sh
 scripts/check.sh            # format, clippy and the tests
-scripts/check.sh --release  # and the release build, started once (.github/scripts/smoke-test.ps1)
+scripts/check.sh --release  # and the release build, started once, and the Store package
 ```
 
 Nothing on GitHub runs by itself, neither for pull requests nor for pushes to `main`:
@@ -93,10 +96,38 @@ Nothing on GitHub runs by itself, neither for pull requests nor for pushes to `m
 |---|---|---|
 | `release.yml` | A version tag `vX.Y.Z` | The checks (`ci.yml`), the build (`build.yml`), then the release |
 | `ci.yml` | By hand: Actions, CI, Run workflow | Format, clippy and the tests on Windows; the build if ticked |
-| `build.yml` | By hand: Actions, Build, Run workflow | The release build, started once, kept as the run's artifact for 90 days |
+| `build.yml` | By hand: Actions, Build, Run workflow | The release build, started once, and the Store package, kept as the run's artifacts for 90 days |
 
 The start-up test checks the executable's version details against `Cargo.toml`, waits for the
 main window and its title, then closes it and expects the program to exit.
+
+## Microsoft Store
+
+Every build also makes the package for the Microsoft Store, `PixelPicker-windows-x64.msix`
+(`.github/scripts/package-msix.ps1`, with MakeAppx and MakePri from the Windows SDK). It is
+unsigned: the Store signs it once it passes certification, so it can't be installed from the
+file itself and isn't attached to releases.
+
+- **Identity.** `packaging/msix/identity.psd1` holds the package's name and publisher. Once the
+  app's name is reserved in Partner Center, copy them from Product management, Product identity;
+  until then the package is for local tests only. The version comes from `Cargo.toml`.
+- **Manifest.** `packaging/msix/AppxManifest.xml`: a desktop program (`runFullTrust`), for
+  Windows 10 version 1809 or later.
+- **Logos.** `examples/msix_assets.rs` draws them from the icon's artwork at every scale and
+  size Windows uses; MakePri indexes them in `resources.pri`.
+- **Local test**, without signing, in Windows' Developer Mode: build the package, then register
+  its unpacked layout, start Pixel Picker from Start, and remove it afterwards:
+
+  ```powershell
+  cargo build --release
+  .github\scripts\package-msix.ps1
+  Add-AppxPackage -Register target\msix\layout\AppxManifest.xml
+  Get-AppxPackage Ialto.PixelPicker | Remove-AppxPackage
+  ```
+
+- **Submission**, in Partner Center: upload the `.msix` from a Release run's `store-package`
+  artifact; justify `runFullTrust` as a desktop program (screen capture, global shortcut,
+  clipboard); give [PRIVACY.md](PRIVACY.md) as the privacy policy.
 
 ## Code
 
@@ -113,12 +144,14 @@ Plain Win32 through [`windows-sys`](https://crates.io/crates/windows-sys), no GU
 | `clipboard.rs` | Text to the clipboard |
 | `icon_art.rs` | The icon's pixels, shared with `build.rs` (tested) |
 | `icon.rs` | The window icons, drawn at the exact size the system asks for |
+| `png.rs` | A small PNG writer for the icon pictures made at build time (tested) |
 | `win.rs` | Small Win32 helpers |
 
 The icon is a 3×3 grid of colored pixels whose center one is ringed like the magnifier's
 target. It is drawn by code, `src/icon_art.rs`, rather than kept as a picture: the window icons
 are drawn at run time at the exact size the system asks for, and `build.rs` draws the same
-artwork for the executable, so they always match.
+artwork for the executable, so they always match; `examples/msix_assets.rs` draws it for the
+Store package's logos.
 
 ## Tests
 
@@ -127,8 +160,8 @@ cargo test
 ```
 
 They cover the color forms (HEX, RGB, HSL conversion), the magnifier (odd cell counts at every
-zoom and scaling, placement near the monitor's edges, the pixels drawn around a target, clipping)
-and the icon's artwork. The windows themselves are checked by the start-up test.
+zoom and scaling, placement near the monitor's edges, the pixels drawn around a target, clipping),
+the icon's artwork and the PNG writer. The windows themselves are checked by the start-up test.
 
 ## Known limitations
 

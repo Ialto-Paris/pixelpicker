@@ -11,6 +11,8 @@ use std::path::{Path, PathBuf};
 
 #[path = "src/icon_art.rs"]
 mod icon_art;
+#[path = "src/png.rs"]
+mod png;
 
 const PRODUCT: &str = "Pixel Picker";
 const INTERNAL_NAME: &str = "PixelPicker";
@@ -39,6 +41,7 @@ fn main() {
     let manifest_template = root.join("pixel-picker.manifest");
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/icon_art.rs");
+    println!("cargo:rerun-if-changed=src/png.rs");
     println!("cargo:rerun-if-changed={}", manifest_template.display());
 
     if env("CARGO_CFG_TARGET_OS") != "windows" {
@@ -129,7 +132,7 @@ fn resource_file(version: &Version) -> Vec<u8> {
         let pixels = icon_art::draw(size);
         // PNG keeps the 256 px image small; smaller sizes use the classic DIB format.
         let image = if size >= 256 {
-            png(size, &pixels)
+            png::encode(size, size, &pixels)
         } else {
             dib(size, &pixels)
         };
@@ -216,58 +219,6 @@ fn dib(size: usize, argb: &[u32]) -> Vec<u8> {
         out.extend(mask);
     }
     out
-}
-
-/// Icon image as a PNG file (RGBA, 8 bits per channel).
-fn png(size: usize, argb: &[u32]) -> Vec<u8> {
-    let mut scanlines = Vec::with_capacity(size * (size * 4 + 1));
-    for row in argb.chunks(size) {
-        scanlines.push(0); // filter type: none
-        for &p in row {
-            let [b, g, r, a] = p.to_le_bytes();
-            scanlines.extend([r, g, b, a]);
-        }
-    }
-
-    let mut header = Vec::with_capacity(13);
-    header.extend((size as u32).to_be_bytes());
-    header.extend((size as u32).to_be_bytes());
-    header.extend([8, 6, 0, 0, 0]); // 8 bits, RGBA, deflate, no filter method, no interlace
-
-    let mut out = b"\x89PNG\r\n\x1a\n".to_vec();
-    png_chunk(&mut out, b"IHDR", &header);
-    png_chunk(
-        &mut out,
-        b"IDAT",
-        &miniz_oxide::deflate::compress_to_vec_zlib(&scanlines, 9),
-    );
-    png_chunk(&mut out, b"IEND", &[]);
-    out
-}
-
-fn png_chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
-    out.extend((data.len() as u32).to_be_bytes());
-    let start = out.len();
-    out.extend(kind);
-    out.extend(data);
-    let crc = crc32(&out[start..]);
-    out.extend(crc.to_be_bytes());
-}
-
-/// CRC-32 (ISO-HDLC), as required by PNG chunks.
-fn crc32(bytes: &[u8]) -> u32 {
-    let mut crc = !0u32;
-    for &b in bytes {
-        crc ^= u32::from(b);
-        for _ in 0..8 {
-            crc = if crc & 1 != 0 {
-                (crc >> 1) ^ 0xEDB8_8320
-            } else {
-                crc >> 1
-            };
-        }
-    }
-    !crc
 }
 
 /// VS_VERSIONINFO: the fixed file information, then the strings Explorer shows in the
