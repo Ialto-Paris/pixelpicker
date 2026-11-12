@@ -1,0 +1,46 @@
+[package]
+name = "pixel-picker"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Pixel Picker - screen color picker for Windows, with a pixel magnifier"
+authors = ["Ialto"]
+license = "Apache-2.0"
+repository = "https://github.com/ialto-paris/pixelpicker"
+homepage = "https://ialto.com"
+publish = false
+
+[[bin]]
+name = "PixelPicker"
+path = "src/main.rs"
+
+# Plain Win32, no GUI framework: the whole program is a single small executable.
+[dependencies.windows-sys]
+version = "0.61"
+features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_Security",
+    "Win32_System_DataExchange",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_UI_Controls",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+]
+
+# Compresses the 256 px icon image that build.rs puts into the executable (PNG).
+[build-dependencies]
+miniz_oxide = "0.9"
+
+# Optimized for speed (the magnifier is redrawn on every mouse move) and still small:
+# about 210 KB.
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

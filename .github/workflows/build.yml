@@ -1,0 +1,39 @@
+# Builds the release executable, starts it once (smoke-test.ps1: version details, main window,
+# clean exit) and keeps it as an artifact (PixelPicker-Windows).
+# Release calls it for every version tag; CI calls it when run by hand with "build"; it can also
+# be run by hand alone (Actions > Build > Run workflow). Nothing runs it by itself.
+name: Build
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    name: build (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Release build
+        run: cargo build --release --locked
+      - name: Package
+        shell: bash
+        run: .github/scripts/package.sh
+      - name: Start-up test
+        shell: pwsh
+        run: .github/scripts/smoke-test.ps1 (Get-Item dist/PixelPicker-windows-*.exe).FullName
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PixelPicker-Windows
+          path: dist/*
+          if-no-files-found: error

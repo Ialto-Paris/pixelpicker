@@ -1,0 +1,49 @@
+# Checks (fmt, clippy, tests) on Windows. Nothing runs by itself: the checks are done locally
+# before pushing (scripts/check.sh), and GitHub's minutes are kept for releases. This runs:
+#   - by hand: Actions > CI > Run workflow, choosing whether to build the executable too
+#     (build.yml, kept as the run's artifact for 90 days);
+#   - for a release: release.yml calls it before building.
+name: CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: Then build the release executable
+        type: boolean
+        default: false
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: fmt, clippy, test (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Test
+        run: cargo test --locked
+
+  build:
+    name: release build
+    needs: check
+    if: github.event_name == 'workflow_dispatch' && inputs.build
+    uses: ./.github/workflows/build.yml
