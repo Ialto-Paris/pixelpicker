@@ -19,23 +19,25 @@ use windows_sys::Win32::System::SystemServices::{
     SS_CENTERIMAGE, SS_ENDELLIPSIS, SS_LEFT, SS_LEFTNOWORDWRAP, SS_NOPREFIX,
 };
 use windows_sys::Win32::System::Threading::CreateMutexW;
+use windows_sys::Win32::UI::Controls::{LWS_TRANSPARENT, NM_CLICK, NM_RETURN, NMHDR, NMLINK};
 use windows_sys::Win32::UI::HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow};
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     EnableWindow, GetFocus, MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, RegisterHotKey, SetFocus,
     UnregisterHotKey,
 };
+use windows_sys::Win32::UI::Shell::ShellExecuteW;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     BS_DEFPUSHBUTTON, BS_PUSHBUTTON, CW_USEDEFAULT, CreateWindowExW, DefWindowProcW,
     DispatchMessageW, ES_AUTOHSCROLL, ES_READONLY, FindWindowW, GetCursorPos, GetDlgCtrlID,
     GetDlgItem, GetMessageW, GetSystemMetrics, HMENU, HTCLIENT, IDC_ARROW, IDC_HAND, IsChild,
     IsDialogMessageW, IsIconic, IsWindowVisible, KillTimer, LoadCursorW, MB_ICONERROR, MB_OK, MSG,
     MessageBoxW, MoveWindow, PostQuitMessage, RegisterClassExW, SM_CXICON, SM_CXSMICON, SW_HIDE,
-    SW_RESTORE, SW_SHOW, SW_SHOWDEFAULT, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER, SendMessageW,
-    SetCursor, SetForegroundWindow, SetTimer, SetWindowPos, SetWindowTextW, ShowWindow,
-    TranslateMessage, WA_INACTIVE, WINDOW_STYLE, WM_ACTIVATE, WM_COMMAND, WM_CTLCOLORSTATIC,
-    WM_DESTROY, WM_DPICHANGED, WM_HOTKEY, WM_LBUTTONDOWN, WM_PAINT, WM_SETCURSOR, WM_SETFONT,
-    WM_TIMER, WNDCLASSEXW, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN, WS_EX_CLIENTEDGE, WS_MINIMIZEBOX,
-    WS_OVERLAPPED, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE,
+    SW_RESTORE, SW_SHOW, SW_SHOWDEFAULT, SW_SHOWNORMAL, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER,
+    SendMessageW, SetCursor, SetForegroundWindow, SetTimer, SetWindowPos, SetWindowTextW,
+    ShowWindow, TranslateMessage, WA_INACTIVE, WINDOW_STYLE, WM_ACTIVATE, WM_COMMAND,
+    WM_CTLCOLORSTATIC, WM_DESTROY, WM_DPICHANGED, WM_HOTKEY, WM_LBUTTONDOWN, WM_NOTIFY, WM_PAINT,
+    WM_SETCURSOR, WM_SETFONT, WM_TIMER, WNDCLASSEXW, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN,
+    WS_EX_CLIENTEDGE, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU, WS_TABSTOP, WS_VISIBLE,
 };
 
 use crate::color::Rgb;
@@ -59,15 +61,22 @@ const TIMER_CAPTURE: usize = 1;
 const HIDE_DELAY_MS: u32 = 150;
 const HISTORY_LEN: usize = 12;
 
+/// The footer's links: the maker and the licence.
+const IALTO_URL: &str = "https://ialto.com";
+const LICENSE_URL: &str = "https://www.apache.org/licenses/LICENSE-2.0";
+
 // Control identifiers. The capture button is IDOK (1), so Enter starts a capture.
 const ID_CAPTURE: u16 = 1;
 const ID_POSITION: u16 = 130;
 const ID_HISTORY_LABEL: u16 = 131;
 const ID_HINT: u16 = 132;
 const ID_STATUS: u16 = 133;
+const ID_FOOTER: u16 = 134;
 
 // Layout, in 96-DPI units.
-const CLIENT_SIZE: (i32, i32) = (412, 300);
+const CLIENT_SIZE: (i32, i32) = (412, 332);
+/// The line between the status and the footer.
+const SEPARATOR: (i32, i32, i32) = (12, 298, 388);
 const SWATCH: (i32, i32, i32, i32) = (12, 12, 106, 106);
 const HISTORY_ORIGIN: (i32, i32) = (12, 198);
 const HISTORY_SWATCH: i32 = 26;
@@ -139,6 +148,8 @@ enum Kind {
     DefaultButton,
     Text,
     Hint,
+    /// Text with `<a href="...">` links (SysLink), opened in the browser when clicked.
+    Links,
 }
 
 /// A child control: identifier, kind, initial text and position (96-DPI units: x, y, w, h).
@@ -182,6 +193,10 @@ fn controls() -> Vec<Control> {
     let hint = "Magnifier: click\u{a0}=\u{a0}pick · Esc\u{a0}=\u{a0}cancel · \
                 wheel\u{a0}or\u{a0}+/−\u{a0}=\u{a0}zoom · \
                 arrows\u{a0}=\u{a0}1\u{a0}pixel\u{a0}(Shift:\u{a0}10) · G\u{a0}=\u{a0}grid";
+    let footer = format!(
+        "© 2026 Ialto · <a href=\"{IALTO_URL}\">ialto.com</a> · \
+         <a href=\"{LICENSE_URL}\">Apache License 2.0</a>"
+    );
     list.extend([
         Control::new(ID_POSITION, Kind::Text, "", (128, 100, 272, 18)),
         Control::new(
@@ -198,6 +213,7 @@ fn controls() -> Vec<Control> {
         ),
         Control::new(ID_HINT, Kind::Hint, hint, (12, 234, 388, 34)),
         Control::new(ID_STATUS, Kind::Text, "", (12, 274, 388, 18)),
+        Control::new(ID_FOOTER, Kind::Links, footer, (12, 304, 388, 18)),
     ]);
     list
 }
@@ -409,6 +425,7 @@ fn create_control(parent: HWND, hinstance: HINSTANCE, c: &Control) {
             0,
         ),
         Kind::Hint => ("STATIC", base | SS_LEFT | SS_NOPREFIX, 0),
+        Kind::Links => ("SysLink", base | WS_TABSTOP | LWS_TRANSPARENT, 0),
     };
     let class = win::wide(class);
     let text = win::wide(&c.text);
@@ -576,10 +593,11 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 DefWindowProcW(hwnd, msg, wparam, lparam)
             }
             WM_CTLCOLORSTATIC => {
-                // White background for labels and read-only fields, gray for the hint.
+                // White background for labels and read-only fields; gray for the hint and
+                // the footer.
                 let hdc = wparam as HDC;
-                let control = lparam as HWND;
-                let text = if GetDlgCtrlID(control) == i32::from(ID_HINT) {
+                let id = GetDlgCtrlID(lparam as HWND);
+                let text = if id == i32::from(ID_HINT) || id == i32::from(ID_FOOTER) {
                     COLOR_GRAYTEXT
                 } else {
                     COLOR_WINDOWTEXT
@@ -587,6 +605,18 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
                 SetTextColor(hdc, GetSysColor(text));
                 SetBkColor(hdc, GetSysColor(COLOR_WINDOW));
                 GetSysColorBrush(COLOR_WINDOW) as LRESULT
+            }
+            WM_NOTIFY => {
+                // A footer link clicked, or Enter on it.
+                let header = &*(lparam as *const NMHDR);
+                if header.idFrom == usize::from(ID_FOOTER)
+                    && (header.code == NM_CLICK || header.code == NM_RETURN)
+                {
+                    let link = &*(lparam as *const NMLINK);
+                    open_link(hwnd, &link.item.szUrl);
+                    return 0;
+                }
+                DefWindowProcW(hwnd, msg, wparam, lparam)
             }
             WM_ACTIVATE => {
                 // Keep the keyboard focus on the same control across deactivation.
@@ -621,6 +651,28 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
             }
             _ => DefWindowProcW(hwnd, msg, wparam, lparam),
         }
+    }
+}
+
+/// Opens a footer link (NUL-terminated UTF-16) in the default browser. Only web addresses
+/// are opened.
+fn open_link(hwnd: HWND, url: &[u16]) {
+    let end = url.iter().position(|&c| c == 0).unwrap_or(url.len());
+    let address = String::from_utf16_lossy(&url[..end]);
+    if !address.starts_with("https://") {
+        return;
+    }
+    let verb = win::wide("open");
+    let address = win::wide(&address);
+    unsafe {
+        ShellExecuteW(
+            hwnd,
+            verb.as_ptr(),
+            address.as_ptr(),
+            null(),
+            null(),
+            SW_SHOWNORMAL,
+        );
     }
 }
 
@@ -776,6 +828,12 @@ fn paint(hwnd: HWND) {
         for i in 0..HISTORY_LEN {
             draw_swatch(hdc, &history_rect(dpi, i), history.get(i).copied());
         }
+        let (x, y, w) = SEPARATOR;
+        let s = |v: i32| win::scale(v, dpi);
+        let line = win::rect(s(x), s(y), s(w), 1);
+        let brush = CreateSolidBrush(0xE0_E0_E0);
+        FillRect(hdc, &line, brush);
+        DeleteObject(brush);
         EndPaint(hwnd, &ps);
     }
 }

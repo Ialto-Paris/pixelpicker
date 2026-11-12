@@ -17,7 +17,7 @@ mod picker;
 mod win;
 
 use windows_sys::Win32::UI::Controls::{
-    ICC_STANDARD_CLASSES, INITCOMMONCONTROLSEX, InitCommonControlsEx,
+    ICC_LINK_CLASS, ICC_STANDARD_CLASSES, INITCOMMONCONTROLSEX, InitCommonControlsEx,
 };
 use windows_sys::Win32::UI::HiDpi::{
     DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
@@ -30,7 +30,8 @@ fn main() {
         SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
         let controls = INITCOMMONCONTROLSEX {
             dwSize: size_of::<INITCOMMONCONTROLSEX>() as u32,
-            dwICC: ICC_STANDARD_CLASSES,
+            // Buttons, fields and labels, and the footer's links (SysLink).
+            dwICC: ICC_STANDARD_CLASSES | ICC_LINK_CLASS,
         };
         InitCommonControlsEx(&controls);
     }

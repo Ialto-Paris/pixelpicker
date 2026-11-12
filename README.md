@@ -48,6 +48,9 @@ straight to the clipboard, and the title (shown in the taskbar) gives it. If ano
 already holds Ctrl+Alt+P, the window says so and only the button starts picking. Only one Pixel
 Picker runs at a time: starting it again brings the window forward.
 
+The foot of the window gives the copyright, a link to [ialto.com](https://ialto.com) and one to
+the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0); both open in the browser.
+
 ## How it works
 
 Picking starts with a screenshot of every monitor, shown frozen in a topmost window that
@@ -101,7 +104,7 @@ Plain Win32 through [`windows-sys`](https://crates.io/crates/windows-sys), no GU
 | Module | Role |
 |---|---|
 | `main.rs` | Entry point: DPI awareness, common controls |
-| `app.rs` | The main window: values, copy buttons, history, global shortcut, single instance |
+| `app.rs` | The main window: values, copy buttons, history, footer links, global shortcut, single instance |
 | `picker.rs` | Picking: the frozen full-screen window, mouse and keyboard, the magnifier box's text |
 | `magnifier.rs` | The magnifier's geometry and pixels (pure code, tested) |
 | `capture.rs` | 32-bit bitmaps and the capture of every monitor |
